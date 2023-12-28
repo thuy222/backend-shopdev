@@ -9,7 +9,10 @@ const { getInfoData } = require("../utils");
 const {
   BadRequestError,
   ConflictRequestError,
+  AuthFailureError,
 } = require("../core/error.response");
+const { findByEmail } = require("./shop.service");
+const apiKeyModel = require("../models/apiKey.model");
 
 const RoleShop = {
   SHOP: "SHOP",
@@ -55,7 +58,7 @@ class AccessService {
 
       //create token pair
       const tokens = await createTokenPair(
-        { userId: newShop._id, email, name },
+        { userId: newShop._id, email },
         publicKey,
         privateKey
       );
@@ -78,6 +81,64 @@ class AccessService {
       code: 200,
       metadata: null,
     };
+  };
+
+  /* 
+  LOGIN:
+    1. Check email in db
+    2. Match password
+    3. Create access token, refresh token and save
+    4. generate token
+    5. return data
+  */
+
+  static login = async ({ email, password }) => {
+    //Check email in db
+    const foundShop = await findByEmail({ email });
+    if (!foundShop) {
+      throw new BadRequestError("Shop doesn't exist");
+    }
+
+    //Match password
+    const match = await bcrypt.compare(password, foundShop.password);
+    if (!match) {
+      throw new AuthFailureError("Authentication Failed");
+    }
+
+    // Create key
+    const publicKey = crypto.randomBytes(64).toString("hex");
+    const privateKey = crypto.randomBytes(64).toString("hex");
+
+    //generate token
+    const tokens = await createTokenPair(
+      { userId: foundShop._id, email },
+      publicKey,
+      privateKey
+    );
+
+    await KeyTokenService.createKeyToken({
+      userId: foundShop._id,
+      publicKey,
+      privateKey,
+      refreshToken: tokens.refreshToken,
+    });
+
+    //return data
+    return {
+      shop: getInfoData({
+        fields: ["_id", "name", "email"],
+        object: foundShop,
+      }),
+      tokens,
+    };
+  };
+  /* 
+  Logout:
+  1. Check xem có phải chính chủ thực hiện hành vi logout ko
+*/
+  static logout = async (keyStore) => {
+    const delKey = await KeyTokenService.removeKeyById(keyStore._id);
+    return delKey;
   };
 }
 
