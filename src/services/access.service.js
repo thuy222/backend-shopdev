@@ -4,12 +4,13 @@ const bcrypt = require("bcrypt");
 const crypto = require("node:crypto");
 const shopModel = require("../models/shop.model");
 const KeyTokenService = require("./keyToken.service");
-const { createTokenPair } = require("../auth/authUtils");
+const { createTokenPair, verifyJWT } = require("../auth/authUtils");
 const { getInfoData } = require("../utils");
 const {
   BadRequestError,
   ConflictRequestError,
   AuthFailureError,
+  ForbiddenError,
 } = require("../core/error.response");
 const { findByEmail } = require("./shop.service");
 const apiKeyModel = require("../models/apiKey.model");
@@ -132,13 +133,71 @@ class AccessService {
       tokens,
     };
   };
-  /* 
-  Logout:
-  1. Check xem có phải chính chủ thực hiện hành vi logout ko
-*/
+
   static logout = async (keyStore) => {
     const delKey = await KeyTokenService.removeKeyById(keyStore._id);
     return delKey;
+  };
+  /* 
+  Refresh token: 
+    1. Check mảng resfreshTokensUsed, xem token đã được sử dụng chưa
+        Nếu trong mảng resfreshTokensUsed có refreshToken  -> lỗi
+    2. Tìm refresh token trong db
+        Nếu ko tìm thấy -> lỗi
+    3. Verify token, cấp cặp token mới, đưa token cũ vào resfreshTokensUsed
+  */
+  static handleRefreshToken = async (refreshToken) => {
+    //check xem token da dc su dung chua
+    const foundToken = await KeyTokenService.findByRefreshTokenUsed(
+      refreshToken
+    );
+
+    if (foundToken) {
+      const { userId, email } = await verifyJWT(
+        refreshToken,
+        foundToken.privateKey
+      );
+
+      await KeyTokenService.deleteKeyById(userId);
+
+      throw new ForbiddenError("Something wrong happened. Please re-login");
+    }
+
+    const holderToken = await KeyTokenService.findByRefreshToken(refreshToken);
+
+    if (!holderToken) {
+      throw new AuthFailureError("Shop is not registered");
+    }
+
+    //verify token
+    const { userId, email } = await verifyJWT(
+      refreshToken,
+      holderToken.privateKey
+    );
+
+    const foundShop = await findByEmail({ email });
+    if (!foundShop) throw new AuthFailureError("Shop is not registered");
+
+    //tao token moi
+    const tokens = await createTokenPair(
+      { userId: foundShop._id, email },
+      holderToken.publicKey,
+      holderToken.privateKey
+    );
+
+    //update token
+
+    await holderToken.updateOne({
+      $set: { refreshToken: tokens.refreshToken },
+      $addToSet: {
+        refreshTokensUsed: refreshToken, //da dc su dung de lay token moi roi
+      },
+    });
+
+    return {
+      user: { userId, email },
+      tokens,
+    };
   };
 }
 
