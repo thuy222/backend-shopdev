@@ -199,6 +199,43 @@ class AccessService {
       tokens,
     };
   };
+
+  static handleRefreshTokenV2 = async ({ refreshToken, user, keyStore }) => {
+    const { userId, email } = user;
+
+    if (keyStore.refreshTokensUsed.includes(refreshToken)) {
+      await KeyTokenService.deleteKeyById(userId);
+      throw new ForbiddenError("Something wrong happened. Please re-login");
+    }
+
+    if (keyStore.refreshToken !== refreshToken) {
+      throw new AuthFailureError("Shop is not registered");
+    }
+
+    const foundShop = await findByEmail({ email });
+    if (!foundShop) throw new AuthFailureError("Shop is not registered");
+
+    //tao token moi
+    const tokens = await createTokenPair(
+      { userId: foundShop._id, email },
+      keyStore.publicKey,
+      keyStore.privateKey
+    );
+
+    //update token
+
+    await keyStore.updateOne({
+      $set: { refreshToken: tokens.refreshToken },
+      $addToSet: {
+        refreshTokensUsed: refreshToken, //da dc su dung de lay token moi roi
+      },
+    });
+
+    return {
+      user,
+      tokens,
+    };
+  };
 }
 
 module.exports = AccessService;
