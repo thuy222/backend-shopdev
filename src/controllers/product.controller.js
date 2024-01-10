@@ -14,15 +14,58 @@ class ProductController {
       }),
     }).send(res);
   };
-  // createProduct = async (req, res, next) => {
-  //   new SuccessResponse({
-  //     message: "Create New Product Successfully",
-  //     metadata: await ProductService.createProduct(req.body.product_type, {
-  //       ...req.body,
-  //       product_shop: req.user.userId,
-  //     }),
-  //   }).send(res);
-  // };
+
+  publishProduct = async (req, res, next) => {
+    new SuccessResponse({
+      message: "Publish Product Successfully",
+      metadata: await ProductServiceV2.publishProductByShop({
+        product_shop: req.user.userId,
+        product_id: req.params.id,
+      }),
+    }).send(res);
+  };
+
+  unPublishProduct = async (req, res, next) => {
+    new SuccessResponse({
+      message: "unPublish Product Successfully",
+      metadata: await ProductServiceV2.unPublishProduct({
+        product_shop: req.user.userId,
+        product_id: req.params.id,
+      }),
+    }).send(res);
+  };
+
+  /**
+   * @description Get all draft for shop
+   * @param {Number} limit
+   * @param {Number} skip
+   * @returns {JSON}
+   */
+
+  getAllDraftForShop = async (req, res, next) => {
+    new SuccessResponse({
+      message: "Get List Drafts Successfully",
+      metadata: await ProductServiceV2.findAllDraftForShop({
+        product_shop: req.user.userId,
+      }),
+    }).send(res);
+  };
+
+  getAllPublishedForShop = async (req, res, next) => {
+    new SuccessResponse({
+      message: "Get List Published Successfully",
+      metadata: await ProductServiceV2.findAllPublishedForShop({
+        product_shop: req.user.userId,
+      }),
+    }).send(res);
+  };
+
+  getListSearchProducts = async (req, res, next) => {
+    new SuccessResponse({
+      message: "Get getListSearchProducts Published Successfully",
+      metadata: await ProductServiceV2.searchProducts(req.params),
+    }).send(res);
+  };
 }
 
 module.exports = new ProductController();

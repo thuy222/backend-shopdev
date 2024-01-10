@@ -6,4 +6,8 @@ node server.js
 
 npm i bcrypt
 
+### Slug
+
+npm i slugify
+
 ###
