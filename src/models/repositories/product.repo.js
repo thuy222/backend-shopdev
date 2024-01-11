@@ -6,17 +6,7 @@ const {
   clothing,
   furniture,
 } = require("../product.model");
-
-const queryProduct = async ({ query, limit, skip }) => {
-  return await product
-    .find(query)
-    .populate("product_shop", "name email -_id") // lets you reference documents in other collections.
-    .sort({ updatedAt: -1 }) //moi nhat
-    .skip(skip) //number of records to skip before finding (nếu skip bằng 3, nó sẽ bỏ qua 3 bản ghi đầu tiên)
-    .limit(limit)
-    .lean()
-    .exec();
-};
+const { getSelectData, getUnSelectData } = require("../../utils");
 
 const findDraftsForShop = async ({ query, limit, skip }) => {
   return await queryProduct({ query, limit, skip });
@@ -28,6 +18,7 @@ const findAllPublishedForShop = async ({ query, limit, skip }) => {
 
 const searchProductsByUser = async ({ keySearch }) => {
   const regexSearch = new RegExp(keySearch);
+
   const results = await product
     .find(
       {
@@ -78,10 +69,55 @@ const unPublishProductByShop = async ({ product_shop, product_id }) => {
   return modifiedCount;
 };
 
+const findAllProducts = async ({ limit, sort, page, filter, select }) => {
+  const skip = (page - 1) * limit;
+  const sortBy = sort === "ctime" ? { _id: -1 } : { _id: 1 };
+
+  const products = await product
+    .find(filter)
+    .sort(sortBy)
+    .skip(skip)
+    .limit(limit)
+    .select(getSelectData(select))
+    .lean();
+
+  return products;
+};
+
+//utils
+const queryProduct = async ({ query, limit, skip }) => {
+  return await product
+    .find(query)
+    .populate("product_shop", "name email -_id") // lets you reference documents in other collections.
+    .sort({ updatedAt: -1 }) //moi nhat
+    .skip(skip) //number of records to skip before finding (nếu skip bằng 3, nó sẽ bỏ qua 3 bản ghi đầu tiên)
+    .limit(limit)
+    .lean()
+    .exec();
+};
+
+const findProduct = async ({ product_id, unSelect }) => {
+  return await product.findById(product_id).select(getUnSelectData(unSelect));
+};
+
+const updateProductById = async ({
+  productId,
+  bodyUpdate,
+  model,
+  isNew = true,
+}) => {
+  return await model.findByIdAndUpdate(productId, bodyUpdate, {
+    new: isNew,
+  });
+};
+
 module.exports = {
   findDraftsForShop,
   publishProductByShop,
   findAllPublishedForShop,
   unPublishProductByShop,
   searchProductsByUser,
+  findAllProducts,
+  findProduct,
+  updateProductById,
 };

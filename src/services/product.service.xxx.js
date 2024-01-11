@@ -12,7 +12,11 @@ const {
   publishProductByShop,
   findAllPublishedForShop,
   searchProductsByUser,
+  findAllProducts,
+  findProduct,
+  updateProductById,
 } = require("../models/repositories/product.repo");
+const { removeUndefinedObject, updateNestedObjectParse } = require("../utils");
 
 //define factory class to create product
 class ProductFactory {
@@ -37,6 +41,16 @@ class ProductFactory {
     return new productClass(payload).createProduct();
   }
 
+  static async updateProduct(type, productId, payload) {
+    const productClass = ProductFactory.productRegistry[type];
+
+    if (!productClass) {
+      throw new BadRequestError(`Invalid Product Type ${type}`);
+    }
+
+    return new productClass(payload).updateProduct(productId);
+  }
+
   static async findAllDraftForShop({ product_shop, limit = 50, skip = 0 }) {
     const query = { product_shop, isDraft: true };
 
@@ -56,8 +70,28 @@ class ProductFactory {
 
     return await findAllPublishedForShop({ query, limit, skip });
   }
+
   static async searchProducts({ keySearch }) {
     return await searchProductsByUser({ keySearch });
+  }
+
+  static async findAllProducts({
+    limit,
+    sort = "ctime", //ctime = moi nhat
+    page = 1,
+    filter = { isPublished: true },
+  }) {
+    return await findAllProducts({
+      limit,
+      sort,
+      page,
+      filter,
+      select: ["product_name", "product_price", "product_thumb"],
+    });
+  }
+
+  static async findProduct({ product_id }) {
+    return await findProduct({ product_id, unSelect: ["__v"] });
   }
 }
 
@@ -87,6 +121,10 @@ class Product {
   async createProduct(product_id) {
     return await product.create({ ...this, _id: product_id });
   }
+
+  async updateProduct(productId, bodyUpdate) {
+    return await updateProductById({ productId, bodyUpdate, model: product });
+  }
 }
 
 //define sub-class for different product types = clothing
@@ -106,6 +144,29 @@ class Clothing extends Product {
     if (!newProduct) throw new BadRequestError("create new product error");
 
     return newProduct;
+  }
+
+  async updateProduct(productId) {
+    //1`. remove undefined/null attributes
+    // console.log("undefined this", this);
+    const objectParams = removeUndefinedObject(this);
+    // console.log("undefined this2", objectParams);
+    //2. check xem update o cho nao
+    if (objectParams.product_attributes) {
+      //update child
+      await await updateProductById({
+        productId,
+        bodyUpdate: updateNestedObjectParse(objectParams.product_attributes),
+        model: clothing,
+      });
+    }
+
+    const updateProduct = await super.updateProduct(
+      productId,
+      updateNestedObjectParse(objectParams)
+    );
+
+    return updateProduct;
   }
 }
 
