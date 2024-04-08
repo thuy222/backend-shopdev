@@ -15,7 +15,9 @@ app.use(
     extended: true,
   })
 );
-
+//test pub sub redis
+// require("./tests/inventory.test");
+// const productTest = require("./tests/product.test");
 //db
 require("./dbs/init.mongodb");
 
